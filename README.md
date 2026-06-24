@@ -19,7 +19,8 @@ A modern, aesthetic, and privacy-focused web application to convert multiple Web
 ## 📸 Screenshots
 
 ### Main Interface
-![Main Interface](screenshots/main-interface.png)
+<img width="1920" height="941" alt="image" src="https://github.com/user-attachments/assets/aa6bb6f7-2ade-4f28-a141-b57b008b66a0" />
+
 *Clean, modern interface with gradient background and glass morphism card*
 
 ### File Selection
