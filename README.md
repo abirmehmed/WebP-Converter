@@ -23,18 +23,6 @@ A modern, aesthetic, and privacy-focused web application to convert multiple Web
 
 *Clean, modern interface with gradient background and glass morphism card*
 
-### File Selection
-![File Selection](screenshots/file-selection.png)
-*Drag and drop or click to select multiple WebP files*
-
-### Conversion in Progress
-![Conversion Progress](screenshots/conversion-progress.png)
-*Real-time progress bar showing conversion status*
-
-### Quality Settings
-![Quality Slider](screenshots/quality-slider.png)
-*Adjust JPG quality to balance file size and image quality*
-
 ## 🚀 Quick Start
 
 ### Option 1: Direct Use (No Installation)
