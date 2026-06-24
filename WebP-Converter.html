@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch WebP → JPG Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Animated background blobs */
+        body::before,
+        body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            z-index: 0;
+            animation: float 8s ease-in-out infinite;
+        }
+        body::before {
+            width: 400px;
+            height: 400px;
+            background: #ff6b9d;
+            top: -100px;
+            left: -100px;
+        }
+        body::after {
+            width: 350px;
+            height: 350px;
+            background: #4facfe;
+            bottom: -100px;
+            right: -100px;
+            animation-delay: -4s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -30px) scale(1.1); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 620px;
+            width: 100%;
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 .arrow {
+            display: inline-block;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            padding: 4px 14px;
+            border-radius: 10px;
+            margin: 0 8px;
+            font-size: 1.4rem;
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.9rem;
+            font-weight: 400;
+        }
+
+        .header p .lock-icon {
+            margin-right: 4px;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            border-radius: 16px;
+            padding: 45px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .upload-area:hover::before {
+            opacity: 1;
+        }
+
+        .upload-area.dragover {
+            border-color: #f093fb;
+            background: rgba(240, 147, 251, 0.15);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 12px;
+            display: block;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .upload-area strong {
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .upload-area span {
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.85rem;
+            display: block;
+            margin-top: 6px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-list-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .file-count-badge {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            box-shadow: 0 2px 10px rgba(245, 87, 108, 0.3);
+        }
+
+        #fileList {
+            max-height: 180px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        #fileList::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #fileList::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #fileList::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        #fileList div {
+            padding: 8px 12px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        #fileList div:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+
+        #fileList div:last-child {
+            border-bottom: none;
+        }
+
+        .file-icon {
+            font-size: 1rem;
+        }
+
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .quality-section {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .quality-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: white;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .quality-value {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        /* Custom slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(245, 87, 108, 0.5);
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 10px rgba(245, 87, 108, 0.5);
+        }
+
+        .convert-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(245, 87, 108, 0.4);
+            font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .convert-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .convert-btn:hover:not(:disabled)::before {
+            left: 100%;
+        }
+
+        .convert-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(245, 87, 108, 0.5);
+        }
+
+        .convert-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .convert-btn:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #f093fb);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+            font-weight: 500;
+            min-height: 22px;
+        }
+
+        .status.success {
+            color: #a8e6cf;
+            font-weight: 600;
+        }
+
+        .status.error {
+            color: #ff8a8a;
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.75rem;
+        }
+
+        @media (max-width: 500px) {
+            .container {
+                padding: 25px 20px;
+            }
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            .controls {
+                flex-direction: column;
+            }
+            .convert-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Batch WebP <span class="arrow">→</span> JPG</h1>
+        <p><span class="lock-icon">🔒</span> Convert multiple images at once. 100% private, processed locally.</p>
+    </div>
+    
+    <label for="fileInput" class="upload-area" id="dropZone">
+        <span class="upload-icon">📁</span>
+        <strong>Click to select WebP images</strong>
+        <span>Hold Ctrl/Cmd to select multiple, or drag & drop a folder here</span>
+    </label>
+    <input type="file" id="fileInput" accept="image/webp" multiple webkitdirectory>
+    
+    <div class="file-list-container" id="fileListContainer">
+        <div class="file-list-header">
+            <span>Selected Files</span>
+            <span class="file-count-badge" id="fileCountBadge">0 files</span>
+        </div>
+        <div id="fileList"></div>
+    </div>
+
+    <div class="controls">
+        <div class="quality-section">
+            <div class="quality-label">
+                <span>Quality</span>
+                <span class="quality-value" id="qualityValue">90%</span>
+            </div>
+            <input type="range" id="qualitySlider" min="10" max="100" value="90">
+        </div>
+        <button class="convert-btn" id="convertBtn" disabled>
+             Convert & Download ZIP
+        </button>
+    </div>
+
+    <div class="progress-container" id="progressContainer">
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+    </div>
+    
+    <div class="status" id="status"></div>
+    <div class="footer-note">Your images never leave your device</div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileList = document.getElementById('fileList');
+    const fileListContainer = document.getElementById('fileListContainer');
+    const fileCountBadge = document.getElementById('fileCountBadge');
+    const convertBtn = document.getElementById('convertBtn');
+    const qualitySlider = document.getElementById('qualitySlider');
+    const qualityValue = document.getElementById('qualityValue');
+    const status = document.getElementById('status');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+
+    let filesToProcess = [];
+
+    qualitySlider.addEventListener('input', () => {
+        qualityValue.textContent = qualitySlider.value + '%';
+        // Update slider gradient fill
+        const val = ((qualitySlider.value - 10) / 90) * 100;
+        qualitySlider.style.background = `linear-gradient(to right, #f093fb 0%, #f5576c ${val}%, rgba(255,255,255,0.2) ${val}%)`;
+    });
+    // Init slider fill
+    qualitySlider.dispatchEvent(new Event('input'));
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    function handleFiles(files) {
+        filesToProcess = Array.from(files).filter(f => f.type === 'image/webp');
+        
+        if (filesToProcess.length === 0) {
+            status.textContent = '⚠️ No WebP files found in that selection.';
+            status.className = 'status error';
+            return;
+        }
+
+        fileListContainer.style.display = 'block';
+        fileCountBadge.textContent = filesToProcess.length + ' file' + (filesToProcess.length > 1 ? 's' : '');
+        fileList.innerHTML = '';
+        filesToProcess.forEach((f, i) => {
+            const sizeMB = (f.size / (1024 * 1024)).toFixed(2);
+            fileList.innerHTML += `<div><span class="file-icon">️</span> ${f.name} <span style="margin-left:auto; opacity:0.6; font-size:0.8em;">${sizeMB} MB</span></div>`;
+        });
+        
+        convertBtn.disabled = false;
+        status.textContent = '';
+        status.className = 'status';
+        progressContainer.style.display = 'none';
+        progressBar.style.width = '0%';
+    }
+
+    convertBtn.addEventListener('click', async () => {
+        convertBtn.disabled = true;
+        progressContainer.style.display = 'block';
+        status.textContent = ' Starting conversion...';
+        status.className = 'status';
+        
+        const zip = new JSZip();
+        const quality = qualitySlider.value / 100;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        for (let i = 0; i < filesToProcess.length; i++) {
+            const file = filesToProcess[i];
+            const progress = ((i + 1) / filesToProcess.length) * 100;
+            progressBar.style.width = progress + '%';
+            status.textContent = `⏳ Processing ${i + 1} of ${filesToProcess.length}: ${file.name}`;
+            
+            try {
+                const img = await loadImage(file);
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+                const newName = file.name.replace(/\.webp$/i, '.jpg');
+                zip.file(newName, blob);
+            } catch (err) {
+                console.error(`Failed to process ${file.name}`, err);
+            }
+        }
+
+        status.textContent = '📦 Generating ZIP file...';
+        
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'converted_images.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        status.textContent = '✅ Done! Check your downloads folder.';
+        status.className = 'status success';
+        convertBtn.disabled = false;
+    });
+
+    function loadImage(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
+        });
+    }
+</script>
+
+</body>
+</html>
