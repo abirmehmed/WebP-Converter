@@ -2,7 +2,7 @@
 
 A modern, aesthetic, and privacy-focused web application to convert multiple WebP images to JPG format instantly. All processing happens locally in your browser - **no uploads, no servers, 100% private**.
 
-![Preview](screenshots/preview.png)
+<img width="1920" height="941" alt="image" src="https://github.com/user-attachments/assets/863f2de2-be32-4860-aa5c-4ed8c8e9b03b" />
 
 ## ✨ Features
 
